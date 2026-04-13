@@ -1,0 +1,300 @@
+================================================================
+  JESS REMINDER SYSTEM — NAMECHEAP SHARED HOSTING SETUP GUIDE
+================================================================
+
+Namecheap shared hosting uses cPanel + Apache. These steps cover
+everything from uploading files to configuring cron jobs.
+
+----------------------------------------------------------------
+PREREQUISITES (CHECK BEFORE STARTING)
+----------------------------------------------------------------
+
+1. Log into cPanel → Software → Select PHP Version
+   - Set PHP to 8.2 or 8.3
+   - Enable these extensions (most are on by default):
+       pdo_mysql, mbstring, openssl, tokenizer, xml,
+       ctype, json, bcmath, fileinfo, intl
+
+2. Make sure you have SSH access enabled.
+   cPanel → Security → SSH Access → Manage SSH Keys
+   Generate a key and authorize it, then connect:
+
+     ssh yourusername@yourdomain.com -p 21098
+
+   (Namecheap shared hosting SSH port is 21098, not 22)
+
+
+----------------------------------------------------------------
+STEP 1 — CREATE THE MYSQL DATABASE
+----------------------------------------------------------------
+
+In cPanel → Databases → MySQL Databases:
+
+  1. Create a new database:       e.g.  yourusername_jess
+  2. Create a new database user:  e.g.  yourusername_jessuser
+  3. Set a strong password for the user
+  4. Add the user to the database → grant ALL PRIVILEGES
+  5. Note down: DB name, DB user, DB password
+
+
+----------------------------------------------------------------
+STEP 2 — UPLOAD PROJECT FILES
+----------------------------------------------------------------
+
+OPTION A — Via SSH (recommended)
+
+  Connect via SSH, then clone or upload:
+
+    # Navigate to your home directory
+    cd ~
+
+    # Clone from GitHub
+    git clone https://github.com/janim3/jess-reminder-system.git
+
+    # Or if the repo is private, use a personal access token:
+    git clone https://yourgithubtoken@github.com/janim3/jess-reminder-system.git
+
+
+OPTION B — Via File Manager / FTP
+
+  Upload the entire project folder to your home directory (~/).
+  Do NOT put it inside public_html yet — only the public/ folder
+  contents will go there (see Step 4).
+
+  Recommended structure on server:
+    ~/jess-reminder-system/        ← full Laravel project lives here
+    ~/public_html/                 ← only the public/ contents go here
+
+
+----------------------------------------------------------------
+STEP 3 — INSTALL COMPOSER DEPENDENCIES VIA SSH
+----------------------------------------------------------------
+
+  cd ~/jess-reminder-system
+
+  # Download Composer if not available globally
+  php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+  php composer-setup.php
+  php -r "unlink('composer-setup.php');"
+
+  # Install dependencies (no dev packages in production)
+  php composer.phar install --optimize-autoloader --no-dev
+
+  # If composer is available globally on the server:
+  composer install --optimize-autoloader --no-dev
+
+
+----------------------------------------------------------------
+STEP 4 — POINT THE DOMAIN TO THE PUBLIC FOLDER
+----------------------------------------------------------------
+
+Laravel's web root must be the public/ folder, NOT the project root.
+
+OPTION A — Subdomain/Addon domain (cleanest)
+  cPanel → Domains → Create a New Domain
+  Set "Document Root" to:  /home/yourusername/jess-reminder-system/public
+
+OPTION B — Main domain (public_html approach)
+  Upload project to ~/jess-reminder-system/
+  Then copy/move public/ contents to public_html/ and edit
+  ~/public_html/index.php — change the paths:
+
+    // Find these two lines and update them:
+    require __DIR__.'/../jess-reminder-system/vendor/autoload.php';
+    $app = require_once __DIR__.'/../jess-reminder-system/bootstrap/app.php';
+
+  Also copy public/.htaccess to public_html/.htaccess
+
+OPTION C — Symlink (if server allows)
+  SSH into the server and run:
+    cd ~
+    ln -s ~/jess-reminder-system/public ~/public_html/reminders
+  This makes the app available at yourdomain.com/reminders
+
+
+----------------------------------------------------------------
+STEP 5 — CONFIGURE THE .env FILE
+----------------------------------------------------------------
+
+  cd ~/jess-reminder-system
+  cp .env.example .env
+  php artisan key:generate
+
+  Then edit .env:
+    nano .env
+
+  Update these values:
+
+    APP_NAME="Jess Reminder System"
+    APP_ENV=production
+    APP_DEBUG=false
+    APP_URL=https://yourdomain.com
+
+    DB_CONNECTION=mysql
+    DB_HOST=localhost
+    DB_PORT=3306
+    DB_DATABASE=yourusername_jess
+    DB_USERNAME=yourusername_jessuser
+    DB_PASSWORD=your_db_password
+
+    MAIL_MAILER=smtp
+    MAIL_HOST=mail.yourdomain.com
+    MAIL_PORT=465
+    MAIL_USERNAME=reminders@yourdomain.com
+    MAIL_PASSWORD=your_email_password
+    MAIL_ENCRYPTION=ssl
+    MAIL_FROM_ADDRESS=reminders@yourdomain.com
+    MAIL_FROM_NAME="Jess Reminder System"
+
+    QUEUE_CONNECTION=database
+
+    SESSION_DRIVER=file
+    CACHE_STORE=file
+    LOG_CHANNEL=single
+
+  Save and close (Ctrl+X in nano, then Y, Enter).
+
+
+----------------------------------------------------------------
+STEP 6 — RUN MIGRATIONS
+----------------------------------------------------------------
+
+  cd ~/jess-reminder-system
+  php artisan migrate --force
+
+
+----------------------------------------------------------------
+STEP 7 — SET FILE PERMISSIONS
+----------------------------------------------------------------
+
+  cd ~/jess-reminder-system
+  chmod -R 755 storage
+  chmod -R 755 bootstrap/cache
+  php artisan storage:link
+
+
+----------------------------------------------------------------
+STEP 8 — OPTIMIZE FOR PRODUCTION
+----------------------------------------------------------------
+
+  cd ~/jess-reminder-system
+  php artisan config:cache
+  php artisan route:cache
+  php artisan view:cache
+  php artisan optimize
+
+
+----------------------------------------------------------------
+STEP 9 — SET UP THE QUEUE WORKER VIA CRON
+----------------------------------------------------------------
+
+IMPORTANT: Shared hosting does not support persistent background
+processes (like `php artisan queue:work`). Instead, use a cron
+job that processes queued jobs on a schedule.
+
+In cPanel → Advanced → Cron Jobs, add this job:
+  Frequency: Every minute (* * * * *)
+  Command:
+    /usr/local/bin/php /home/yourusername/jess-reminder-system/artisan queue:work database --stop-when-empty --tries=3 --max-time=55 >> /dev/null 2>&1
+
+  The --stop-when-empty flag makes it exit once the queue is
+  drained, and --max-time=55 ensures it stops before the next
+  cron fires (at 60s).
+
+  Replace "yourusername" with your actual cPanel username.
+
+
+----------------------------------------------------------------
+STEP 10 — SET UP THE REMINDER SCHEDULER VIA CRON
+----------------------------------------------------------------
+
+In cPanel → Advanced → Cron Jobs, add a second cron job:
+  Frequency: Every minute (* * * * *)
+  Command:
+    /usr/local/bin/php /home/yourusername/jess-reminder-system/artisan schedule:run >> /dev/null 2>&1
+
+  This triggers Laravel's scheduler, which runs reminders:send
+  every minute to check assignment times and dispatch jobs.
+
+  TIP: To find the correct PHP path on your server, SSH in and run:
+    which php
+  Common paths on Namecheap: /usr/local/bin/php  or  /usr/bin/php
+
+
+FINAL CRON SETUP SUMMARY (two entries in cPanel):
+  * * * * *  /usr/local/bin/php /home/yourusername/jess-reminder-system/artisan schedule:run >> /dev/null 2>&1
+  * * * * *  /usr/local/bin/php /home/yourusername/jess-reminder-system/artisan queue:work database --stop-when-empty --tries=3 --max-time=55 >> /dev/null 2>&1
+
+
+----------------------------------------------------------------
+STEP 11 — CONFIGURE .htaccess (if needed)
+----------------------------------------------------------------
+
+Ensure mod_rewrite is enabled (it is on Namecheap by default).
+The public/.htaccess file in the repo is already correct for
+Laravel. If you get 404 errors, confirm the file is present at
+your document root.
+
+
+----------------------------------------------------------------
+STEP 12 — VERIFY THE INSTALLATION
+----------------------------------------------------------------
+
+  1. Visit https://yourdomain.com — should redirect to Contacts list
+  2. Create a contact, a template, and an assignment
+  3. Check the queue is processing:
+       php artisan queue:monitor database
+  4. Check the scheduler ran:
+       php artisan schedule:list
+  5. Check logs if anything goes wrong:
+       tail -f ~/jess-reminder-system/storage/logs/laravel.log
+
+
+----------------------------------------------------------------
+TROUBLESHOOTING
+----------------------------------------------------------------
+
+500 Error
+  → Check storage/ and bootstrap/cache/ are writable (Step 7)
+  → Check APP_DEBUG=true temporarily to see the real error
+  → Check .env has no syntax errors
+
+419 Page Expired (forms not submitting)
+  → SESSION_DRIVER=file in .env
+  → storage/framework/sessions/ must be writable
+
+Emails not sending
+  → Use Namecheap's built-in mail server (MAIL_HOST=mail.yourdomain.com)
+  → Or use a transactional service: Mailtrap (testing), Mailgun,
+    SendGrid, or Brevo — update MAIL_* values in .env accordingly
+
+Queue jobs not running
+  → Confirm the cron job is saved in cPanel
+  → SSH and run manually: php artisan queue:work --stop-when-empty
+  → Check the jobs table: SELECT * FROM jobs;
+
+Scheduler not firing
+  → SSH and run manually: php artisan schedule:run
+  → Confirm cron path to php is correct (run: which php)
+
+"Class not found" errors
+  → Re-run: php artisan optimize (or composer dump-autoload)
+
+After any code changes (git pull)
+  → Run: php artisan optimize
+  → Run: php artisan migrate --force   (if there are new migrations)
+
+
+----------------------------------------------------------------
+KEEPING THE PROJECT UPDATED
+----------------------------------------------------------------
+
+SSH into the server and run:
+
+  cd ~/jess-reminder-system
+  git pull origin master
+  composer install --no-dev --optimize-autoloader
+  php artisan migrate --force
+  php artisan optimize
+
+================================================================
