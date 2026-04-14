@@ -24,7 +24,7 @@
             <td>{{ $assignment->id }}</td>
             <td>{{ $assignment->contact->name }}</td>
             <td>{{ $assignment->template->name }}</td>
-            <td>{{ str_replace('_', ' ', $assignment->frequency_type) }}</td>
+            <td>{{ $assignment->is_advanced ? 'Advanced' : str_replace('_', ' ', $assignment->frequency_type) }}</td>
             <td>{{ implode(', ', $assignment->send_times) }}</td>
             <td><span class="badge bg-info text-dark">{{ $assignment->channel }}</span></td>
             <td>

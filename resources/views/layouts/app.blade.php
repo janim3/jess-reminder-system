@@ -7,14 +7,27 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
 <body>
+    @php($isAuthenticated = auth()->check())
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="{{ route('contacts.index') }}">Jess Reminder System</a>
+            <a class="navbar-brand fw-bold" href="{{ $isAuthenticated ? route('contacts.index') : route('login') }}">Jess Reminder System</a>
+            @if ($isAuthenticated)
             <div class="navbar-nav">
                 <a class="nav-link {{ request()->routeIs('contacts.*') ? 'active' : '' }}" href="{{ route('contacts.index') }}">Contacts</a>
                 <a class="nav-link {{ request()->routeIs('templates.*') ? 'active' : '' }}" href="{{ route('templates.index') }}">Templates</a>
                 <a class="nav-link {{ request()->routeIs('assignments.*') ? 'active' : '' }}" href="{{ route('assignments.index') }}">Assignments</a>
+                <a class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}" href="{{ route('profile.edit') }}">Profile</a>
             </div>
+            <form method="POST" action="{{ route('logout') }}" class="ms-auto">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-light">Logout</button>
+            </form>
+            @endif
+            @if (! $isAuthenticated)
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link {{ request()->routeIs('login') ? 'active' : '' }}" href="{{ route('login') }}">Login</a>
+            </div>
+            @endif
         </div>
     </nav>
 

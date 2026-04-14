@@ -27,8 +27,13 @@ class AssignmentFactory extends Factory
             'contact_id'     => Contact::factory(),
             'template_id'    => Template::factory(),
             'frequency_type' => $frequencyType,
+            'is_advanced'    => false,
             'send_times'     => $sendTimes,
+            'recurrence_rule' => null,
             'channel'        => $this->faker->randomElement(['sms', 'email', 'both']),
+            'start_date' => null,
+            'end_date' => null,
+            'timezone' => null,
         ];
     }
 }

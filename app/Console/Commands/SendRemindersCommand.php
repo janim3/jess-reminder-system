@@ -14,14 +14,15 @@ class SendRemindersCommand extends Command
 
     public function handle(MessageEngine $engine): void
     {
-        $currentTime = Carbon::now()->format('H:i');
+        $now = Carbon::now();
+        $currentTime = $now->format('H:i');
 
         $assignments = Assignment::with(['contact', 'template'])->get();
 
         $dispatched = 0;
 
         foreach ($assignments as $assignment) {
-            if ($this->shouldDispatch($assignment, $currentTime)) {
+            if ($this->shouldDispatch($assignment, $now)) {
                 $engine->dispatch($assignment);
                 $dispatched++;
             }
@@ -30,20 +31,8 @@ class SendRemindersCommand extends Command
         $this->info("Dispatched {$dispatched} reminder job(s) at {$currentTime}.");
     }
 
-    private function shouldDispatch(Assignment $assignment, string $currentTime): bool
+    private function shouldDispatch(Assignment $assignment, Carbon $now): bool
     {
-        $sendTimes = $assignment->send_times ?? [];
-
-        if (empty($sendTimes)) {
-            return false;
-        }
-
-        foreach ($sendTimes as $time) {
-            if ($time === $currentTime) {
-                return true;
-            }
-        }
-
-        return false;
+        return $assignment->shouldSendNow($now);
     }
 }
