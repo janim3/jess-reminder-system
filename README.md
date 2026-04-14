@@ -95,6 +95,9 @@ Add a single cron entry to your server to run the Laravel scheduler every minute
 * * * * * cd /path/to/jess-reminder-system && php artisan schedule:run >> /dev/null 2>&1
 ```
 
+FOr namecheap
+cd /home/daloojzr/jessreminder.daloadman.com && php artisan schedule:run >> /dev/null 2>&1
+
 The scheduler automatically runs `reminders:send` every minute, checking all assignments and dispatching queue jobs for any whose `send_times` match the current `HH:MM`.
 
 **On Windows (development)**, use the built-in scheduler loop instead:
