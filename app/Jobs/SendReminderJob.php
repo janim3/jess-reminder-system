@@ -6,11 +6,13 @@ use App\Mail\ReminderMail;
 use App\Models\Assignment;
 use App\Services\SmsServiceInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Mail;
 
 class SendReminderJob implements ShouldQueue
 {
+    use Dispatchable;
     use Queueable;
 
     public int $tries = 3;

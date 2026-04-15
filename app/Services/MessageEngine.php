@@ -9,6 +9,7 @@ class MessageEngine
 {
     public function dispatch(Assignment $assignment): void
     {
-        SendReminderJob::dispatch($assignment);
+        // Run synchronously so reminders work with cron-only hosting (no queue worker).
+        SendReminderJob::dispatchSync($assignment);
     }
 }
